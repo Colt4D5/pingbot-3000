@@ -4,8 +4,8 @@ import pkg from '@slack/bolt';
 const { App } = pkg;
 import dotenv from 'dotenv';
 dotenv.config();
-// import './config/graphic-tide-340702-00aaae7a357a.json';
-const doc = new GoogleSpreadsheet('1alLfPeuZUmVsNUA6nfrOwaKNzd0GHM1UL99dS4c51v8');
+
+const doc = new GoogleSpreadsheet(process.env.GOOGLE_SPREADSHEET_ID);
 
 const app = new App({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
@@ -13,12 +13,11 @@ const app = new App({
 });
 
 const channels = {
-  sitehealth: 'C038G7KMZ3J',
-  pingbotLog: 'C0390N5HRNX'
+  sitehealth: process.env.SLACK_CHANNEL_SITEHEALTH_ID,
+  pingbotLog: process.env.SLACK_CHANNEL_PINGBOT_LOG_ID
 }
 
 const pingSalonUrls = async () => {
-  // await doc.useServiceAccountAuth(creds);
   await doc.useServiceAccountAuth({
     client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     private_key: process.env.GOOGLE_PRIVATE_KEY.split(String.raw`\n`).join('\n'),
