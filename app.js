@@ -67,10 +67,15 @@ async function repingFlaggedSalons() {
 async function getResponseCode(salon, flagged = false) {
   console.log(salon._rowNumber, flagged);
   
-  const formattedUrl = salon['Domain'].replace('https://', '').replace('http//', '').replace('www.', '');
+  const formattedUrl = salon['Domain'].replace('https://', '').replace('http://', '').replace('www.', '');
   let status;
   try {
-    const res = await fetch(`https://${formattedUrl}`, {
+    const url = 
+      salon['Domain'] === 'host.immarketing.net:2087' ||
+      salon['Domain'] === 'host.imaginalmarketing.net:2087' ? 
+      `http://${formattedUrl}` :
+      `https://${formattedUrl}`;
+    const res = await fetch(url, {
       timeout: 20000
     });
     status = res.status;
@@ -122,13 +127,13 @@ const sendSlackMessage = async (channel, msg) => {
       text: msg
     });
   }
-  catch (error) {
-    console.error(error);
+  catch (err) {
+    console.error(err);
   }
 }
 
 async function runPingy() {
-  sendSlackMessage(channels['pingbotLog'], 'Scan staring...');
+  sendSlackMessage(channels['pingbotLog'], 'Scan starting...');
 
   const start = Date.now();
 
