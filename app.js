@@ -5,52 +5,114 @@ const { App } = pkg;
 import dotenv from 'dotenv';
 dotenv.config();
 
+let totalRows;
+let flaggedSites = 0;
+const flaggedSalons = [];
+
+// connect to pingy sites spreadsheet
 const doc = new GoogleSpreadsheet(process.env.GOOGLE_SPREADSHEET_ID);
 
+// initialize and authorize Pingy to access IM slack space
 const app = new App({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
   token: process.env.SLACK_BOT_TOKEN,
 });
 
+// define Slack channels to send messages to
 const channels = {
   sitehealth: process.env.SLACK_CHANNEL_SITEHEALTH_ID,
   pingbotLog: process.env.SLACK_CHANNEL_PINGBOT_LOG_ID
 }
 
+// ping them urls, yo
 const pingSalonUrls = async () => {
+  // authorize access to pingy sites spreadsheet
   await doc.useServiceAccountAuth({
     client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     private_key: process.env.GOOGLE_PRIVATE_KEY.split(String.raw`\n`).join('\n'),
   });
   
-  await doc.loadInfo(); // loads document properties and worksheets
+  // loads document properties and worksheets
+  await doc.loadInfo(); 
 
-
-  const pingyList = doc.sheetsByIndex[3]; // in the order they appear on the sheets UI
+  // in the order they appear on the sheets UI
+  const pingyList = doc.sheetsByIndex[3]; 
 
   const salons = await pingyList.getRows();
-
-  const start = Date.now();
-
-  for (const salon of salons) {
-      await getResponseCode(salon['Domain'])
-  }
-
-  const end = Date.now();
-  const executionTime = (end - start) / 1000;
-  console.log(`Execution time: ${executionTime} seconds`);
-
-  async function getResponseCode(url) {
-    const formattedUrl = url.replace('https://').replace('https//').replace('www.', '');
-    const res = await fetch(`https://${formattedUrl}`);
-    console.log(`${res.status}`)
-    if (res.status !== 200) {
-      sendSlackMessage(channels['sitehealth'], `${url} responded with a status code of ${res.status}`)
+  totalRows = salons.length;
+  // console.log(salons);
+  
+  // loop through salons and ping them domains
+  for (let salon of salons) {
+    if (salon['Domain']) {
+      // if (salon._rowNumber > 450) {
+        await getResponseCode(salon)
+      // }
     }
   }
-
+  
 }
-pingSalonUrls();
+
+async function repingFlaggedSalons() {
+  console.log('Repinging flagged salons...');
+  console.log(flaggedSalons);
+  if (flaggedSalons.length > 0) {
+    for (let flaggedSalon of flaggedSalons) {
+      console.log(flaggedSalon);
+      await getResponseCode(flaggedSalon, true);
+    }
+  }
+}
+
+async function getResponseCode(salon, flagged = false) {
+  console.log(salon._rowNumber, flagged);
+  
+  const formattedUrl = salon['Domain'].replace('https://', '').replace('http//', '').replace('www.', '');
+  let status;
+  try {
+    const res = await fetch(`https://${formattedUrl}`, {
+      timeout: 20000
+    });
+    status = res.status;
+    if (status && typeof status === 'number') {
+      if (status < 200 || status > 299) {
+        throw new Error(`https://${formattedUrl} responded with a status code of ${status}`);
+      }
+    } else {
+      throw new Error(`https://${formattedUrl} could not be successfully pinged.`);
+    }
+  } catch (err) {
+    if (err?.message) {
+      if (!flagged) {
+        console.log('pushing: ', salon['Domain']);
+        flaggedSalons.push( salon );
+      }
+      if (flagged) {
+        console.log(err.message);
+        // site health channel //
+        sendSlackMessage(channels['sitehealth'], `${salon._rowNumber}: ${err.message}`)
+        // test channel //
+        // sendSlackMessage(channels['pingbotLog'], `${salon._rowNumber}: ${err.message}`)
+        flaggedSites++;
+      }
+    }
+    return;
+  }
+  if (status < 200 || status > 299) {
+    if (!flagged) {
+      console.log('pushing: ', salon['Domain']);
+      flaggedSalons.push( salon );
+    }
+    if (flagged) {
+      console.log(`${salon._rowNumber} ${status}: ${salon['Domain']} responded with a status code of ${status}`);
+      // site health channel //
+      sendSlackMessage(channels['sitehealth'], `${salon._rowNumber}: ${err.message}`)
+      // test channel //
+      // sendSlackMessage(channels['pingbotLog'], `${salon._rowNumber}: ${err.message}`)
+      flaggedSites++;
+    }
+  }
+}
 
 const sendSlackMessage = async (channel, msg) => {
   try {
@@ -64,3 +126,21 @@ const sendSlackMessage = async (channel, msg) => {
     console.error(error);
   }
 }
+
+async function runPingy() {
+  sendSlackMessage(channels['pingbotLog'], 'Scan staring...');
+
+  const start = Date.now();
+
+  await pingSalonUrls();
+  
+  await repingFlaggedSalons();
+
+  const end = Date.now();
+  const executionTime = (end - start) / 1000;
+  const minutes = Math.trunc(executionTime / 60);
+  const seconds = Math.trunc(executionTime % 60);
+  console.log(`Execution time: ${minutes} minutes and ${seconds} seconds`);
+  sendSlackMessage(channels['pingbotLog'], `Finished scanning ${totalRows} sites after ${minutes} minutes and ${seconds} seconds with ${flaggedSites} flagged sites`)
+}
+runPingy();
