@@ -40,12 +40,11 @@ const pingSalonUrls = async () => {
 
   const salons = await pingyList.getRows();
   totalRows = salons.length;
-  // console.log(salons);
   
   // loop through salons and ping them domains
   for (let salon of salons) {
     if (salon['Domain']) {
-      // if (salon._rowNumber > 450) {
+      // if (salon._rowNumber > 450) { // to test only a range of rows
         await getResponseCode(salon)
       // }
     }
@@ -54,18 +53,14 @@ const pingSalonUrls = async () => {
 }
 
 async function repingFlaggedSalons() {
-  console.log('Repinging flagged salons...');
-  console.log(flaggedSalons);
   if (flaggedSalons.length > 0) {
     for (let flaggedSalon of flaggedSalons) {
-      console.log(flaggedSalon);
       await getResponseCode(flaggedSalon, true);
     }
   }
 }
 
 async function getResponseCode(salon, flagged = false) {
-  console.log(salon._rowNumber, flagged);
   
   const formattedUrl = salon['Domain'].replace('https://', '').replace('http://', '').replace('www.', '');
   let status;
@@ -89,15 +84,15 @@ async function getResponseCode(salon, flagged = false) {
   } catch (err) {
     if (err?.message) {
       if (!flagged) {
-        console.log('pushing: ', salon['Domain']);
         flaggedSalons.push( salon );
       }
       if (flagged) {
-        console.log(err.message);
-        // site health channel //
+        // site health production channel //
         sendSlackMessage(channels['sitehealth'], `${salon._rowNumber}: ${err.message}`)
+
         // test channel //
         // sendSlackMessage(channels['pingbotLog'], `${salon._rowNumber}: ${err.message}`)
+
         flaggedSites++;
       }
     }
@@ -105,15 +100,15 @@ async function getResponseCode(salon, flagged = false) {
   }
   if (status < 200 || status > 299) {
     if (!flagged) {
-      console.log('pushing: ', salon['Domain']);
       flaggedSalons.push( salon );
     }
     if (flagged) {
-      console.log(`${salon._rowNumber} ${status}: ${salon['Domain']} responded with a status code of ${status}`);
-      // site health channel //
+      // site health production channel //
       sendSlackMessage(channels['sitehealth'], `${salon._rowNumber}: ${err.message}`)
+
       // test channel //
-      // sendSlackMessage(channels['pingbotLog'], `${salon._rowNumber}: ${err.message}`)
+      // sendSlackMessage(channels['pingbotLog'], `${salon._rowNumber}: ${err.message}`);
+
       flaggedSites++;
     }
   }
@@ -145,7 +140,6 @@ async function runPingy() {
   const executionTime = (end - start) / 1000;
   const minutes = Math.trunc(executionTime / 60);
   const seconds = Math.trunc(executionTime % 60);
-  console.log(`Execution time: ${minutes} minutes and ${seconds} seconds`);
   sendSlackMessage(channels['pingbotLog'], `Finished scanning ${totalRows} sites after ${minutes} minutes and ${seconds} seconds with ${flaggedSites} flagged sites`)
 }
 runPingy();
