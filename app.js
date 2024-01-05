@@ -36,7 +36,7 @@ const pingSalonUrls = async () => {
   await doc.loadInfo(); 
 
   // in the order they appear on the sheets UI
-  const pingyList = doc.sheetsByIndex[3]; 
+  const pingyList = doc.sheetsByIndex[0]; 
 
   const salons = await pingyList.getRows();
   totalRows = salons.length;
@@ -136,6 +136,8 @@ async function runPingy() {
   
   await repingFlaggedSalons();
 
+  // await testPingy();
+
   const end = Date.now();
   const executionTime = (end - start) / 1000;
   const minutes = Math.trunc(executionTime / 60);
@@ -143,3 +145,30 @@ async function runPingy() {
   sendSlackMessage(channels['pingbotLog'], `Finished scanning ${totalRows} sites after ${minutes} minutes and ${seconds} seconds with ${flaggedSites} flagged sites`)
 }
 runPingy();
+
+async function testPingy() {
+
+  // authorize access to pingy sites spreadsheet
+  await doc.useServiceAccountAuth({
+    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.split(String.raw`\n`).join('\n'),
+  });
+  
+  // loads document properties and worksheets
+  await doc.loadInfo(); 
+
+  // in the order they appear on the sheets UI
+  const pingyList = doc.sheetsByIndex[1]; 
+
+  const salons = await pingyList.getRows();
+  totalRows = salons.length;
+  
+  // loop through salons and ping them domains
+  for (let salon of salons) {
+    if (salon['Domain']) {
+      // if (salon._rowNumber > 450) { // to test only a range of rows
+        console.log(salon['Domain'])
+      // }
+    }
+  }
+}
