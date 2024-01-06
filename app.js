@@ -36,17 +36,15 @@ const pingSalonUrls = async () => {
   await doc.loadInfo(); 
 
   // in the order they appear on the sheets UI
-  const pingyList = doc.sheetsByIndex[0]; 
+  const pingyList = doc.sheetsByIndex[1]; 
 
   const salons = await pingyList.getRows();
   totalRows = salons.length;
   
   // loop through salons and ping them domains
   for (let salon of salons) {
-    if (salon['Domain']) {
-      // if (salon._rowNumber > 450) { // to test only a range of rows
-        await getResponseCode(salon)
-      // }
+    if (salon['Domain'] && salon['Active'] === 'TRUE') {
+      await getResponseCode(salon)
     }
   }
   
