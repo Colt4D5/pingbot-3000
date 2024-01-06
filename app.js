@@ -36,7 +36,7 @@ const pingSalonUrls = async () => {
   await doc.loadInfo(); 
 
   // in the order they appear on the sheets UI
-  const pingyList = doc.sheetsByIndex[1]; 
+  const pingyList = doc.sheetsByIndex[0]; 
 
   const salons = await pingyList.getRows();
   totalRows = salons.length;
