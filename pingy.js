@@ -1,25 +1,34 @@
-// Default Pingy from Google Sheet
+// Pingy that fetches from a remote json file
+// ** args:
+// **** --list={https://json/file/url.json}
+// **** -t [test mode -> sends to pingbot-log instead of health]
 import fetch from 'node-fetch';
-import { GoogleSpreadsheet } from 'google-spreadsheet';
 import pkg from '@slack/bolt';
 const { App } = pkg;
 import dotenv from 'dotenv';
 dotenv.config();
 
-let sheetIndex = 0
+let list = 'https://potatohead.imaginalmarketing.net/urls.json';
 let isTest = false
 
-if (process.argv.includes('--t')) {
-  sheetIndex = 1
-  isTest = true
+process.argv.forEach(arg => {
+  if (arg.slice(0, 7).toLowerCase() === '--list=') {
+    list = arg.split('=')[1]
+  } else if (arg === '-t') {
+    isTest = true
+  }
+})
+
+async function getUrls(url) {
+  const response = await fetch(url);
+  const data = await response.json();
+  return data
 }
+const sites = await getUrls(list);
 
 let totalRows;
 let flaggedSites = 0;
 const flaggedSalons = [];
-
-// connect to pingy sites spreadsheet
-const doc = new GoogleSpreadsheet(process.env.GOOGLE_SPREADSHEET_ID);
 
 // initialize and authorize Pingy to access IM slack space
 const app = new App({
@@ -35,34 +44,14 @@ const channels = {
 
 // ping them urls, yo
 const pingSalonUrls = async () => {
-  // authorize access to pingy sites spreadsheet
-  await doc.useServiceAccountAuth({
-    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY.split(String.raw`\n`).join('\n'),
-  });
-  
-  // loads document properties and worksheets
-  await doc.loadInfo(); 
-
-  // in the order they appear on the sheets UI
-  const pingyList = doc.sheetsByIndex[sheetIndex]; 
-
-  const salons = await pingyList.getRows();
-  totalRows = salons.length;
+  totalRows = sites.urls.length;
   
   // loop through salons and ping them domains
-  // for (let salon of salons) {
-  //   if (salon['Domain'] && salon['Active'] === 'TRUE') {
-  //     await getResponseCode(salon)
-  //   }
+  // for (let salon of sites.urls) {
+  //   console.log(salon);
+  //   await getResponseCode(salon)
   // }
-
-  const response = await Promise.all(salons.map(salon => {
-    if (salon['Active']) {
-      return getResponseCode(salon)
-    }
-    return
-  }))
+  const response = await Promise.all(sites.urls.map(url => getResponseCode(url)))
   
 }
 
@@ -76,12 +65,12 @@ async function repingFlaggedSalons() {
 
 async function getResponseCode(salon, flagged = false) {
   
-  const formattedUrl = salon['Domain'].replace('https://', '').replace('http://', '').replace('www.', '');
+  const formattedUrl = salon.replace('https://', '').replace('http://', '').replace('www.', '');
   let status;
   try {
     const url = 
-      salon['Domain'] === 'host.immarketing.net:2087' ||
-      salon['Domain'] === 'host.imaginalmarketing.net:2087' ? 
+      salon === 'host.immarketing.net:2087' ||
+      salon === 'host.imaginalmarketing.net:2087' ? 
       `http://${formattedUrl}` :
       `https://${formattedUrl}`;
     const res = await fetch(url, {
@@ -103,10 +92,10 @@ async function getResponseCode(salon, flagged = false) {
       if (flagged) {
         if (!isTest) {
           // site health production channel //
-          sendSlackMessage(channels['sitehealth'], `${salon._rowNumber}: ${err.message}`)
+          sendSlackMessage(channels['sitehealth'], err.message)
         } else {
           // test channel //
-          sendSlackMessage(channels['pingbotLog'], `${salon._rowNumber}: ${err.message}`)
+          sendSlackMessage(channels['pingbotLog'], err.messag)
         }
 
 
@@ -122,10 +111,10 @@ async function getResponseCode(salon, flagged = false) {
     if (flagged) {
       if (!isTest) {
         // site health production channel //
-        sendSlackMessage(channels['sitehealth'], `${salon._rowNumber}: ${err.message}`)
+        sendSlackMessage(channels['sitehealth'], err.message)
       } else {
         // test channel //
-        sendSlackMessage(channels['pingbotLog'], `${salon._rowNumber}: ${err.message}`);
+        sendSlackMessage(channels['pingbotLog'], err.message);
       }
 
 
@@ -156,8 +145,6 @@ async function runPingy() {
   
   await repingFlaggedSalons();
 
-  // await testPingy();
-
   const end = Date.now();
   const executionTime = (end - start) / 1000;
   const minutes = Math.trunc(executionTime / 60);
@@ -165,30 +152,3 @@ async function runPingy() {
   sendSlackMessage(channels['pingbotLog'], `Finished scanning ${totalRows} sites after ${minutes} minutes and ${seconds} seconds with ${flaggedSites} flagged sites`)
 }
 runPingy();
-
-async function testPingy() {
-
-  // authorize access to pingy sites spreadsheet
-  await doc.useServiceAccountAuth({
-    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY.split(String.raw`\n`).join('\n'),
-  });
-  
-  // loads document properties and worksheets
-  await doc.loadInfo(); 
-
-  // in the order they appear on the sheets UI
-  const pingyList = doc.sheetsByIndex[sheetIndex]; 
-
-  const salons = await pingyList.getRows();
-  totalRows = salons.length;
-  
-  // loop through salons and ping them domains
-  for (let salon of salons) {
-    if (salon['Domain']) {
-      // if (salon._rowNumber > 450) { // to test only a range of rows
-        console.log(salon['Domain'])
-      // }
-    }
-  }
-}
