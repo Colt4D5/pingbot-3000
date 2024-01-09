@@ -1,6 +1,6 @@
 // Pingy that fetches from a remote json file
 // ** args:
-// **** --list={https://json/file/url.json}
+// **** http:// || https:// will query list
 // **** -t [test mode -> sends to pingbot-log instead of health]
 import fetch from 'node-fetch';
 import pkg from '@slack/bolt';
@@ -8,23 +8,36 @@ const { App } = pkg;
 import dotenv from 'dotenv';
 dotenv.config();
 
-let list = 'https://potatohead.imaginalmarketing.net/urls.json';
 let isTest = false
 
+let compiledListArr = []
+
 process.argv.forEach(arg => {
-  if (arg.slice(0, 7).toLowerCase() === '--list=') {
-    list = arg.split('=')[1]
+  if (arg.includes('http://') || arg.includes('https://')) {
+    compiledListArr.push(arg)
   } else if (arg === '-t') {
     isTest = true
   }
 })
 
-async function getUrls(url) {
-  const response = await fetch(url);
+if (compiledListArr.length === 0) {
+  compiledListArr = ['http://67.227.167.26/filtered_accounts.json','http://67.227.166.13/filtered_accounts.json']
+}
+
+async function getUrls(listUrl) {
+  const response = await fetch(listUrl);
   const data = await response.json();
   return data
 }
-const sites = await getUrls(list);
+
+let allUrls = []
+
+for await (const list of compiledListArr) {
+  const urls = await getUrls(list);
+  allUrls = [...allUrls, ...urls.active]
+}
+// const sites = await getUrls(compiledListArr);
+
 
 let totalRows;
 let flaggedSites = 0;
@@ -44,14 +57,9 @@ const channels = {
 
 // ping them urls, yo
 const pingSalonUrls = async () => {
-  totalRows = sites.urls.length;
-  
-  // loop through salons and ping them domains
-  // for (let salon of sites.urls) {
-  //   console.log(salon);
-  //   await getResponseCode(salon)
-  // }
-  const response = await Promise.all(sites.urls.map(url => getResponseCode(url)))
+  totalRows = allUrls.length
+
+  const response = await Promise.all(allUrls.map(acct => getResponseCode(acct.domain)))
   
 }
 
