@@ -7,8 +7,10 @@ import pkg from '@slack/bolt';
 const { App } = pkg;
 import dotenv from 'dotenv';
 dotenv.config();
+import fs from 'node:fs';
 
 let isTest = false
+let willBreak = false
 
 let compiledListArr = []
 
@@ -17,6 +19,8 @@ process.argv.forEach(arg => {
     compiledListArr.push(arg)
   } else if (arg === '-t') {
     isTest = true
+  } else if (arg === '-b') {
+    willBreak = true
   }
 })
 
@@ -26,17 +30,31 @@ if (compiledListArr.length === 0) {
 
 async function getUrls(listUrl) {
   const response = await fetch(listUrl);
-  const data = await response.json();
-  return data
+  if (response.ok) {
+    const data = await response.json();
+    return data
+  }
 }
 
 let allUrls = []
 
 for await (const list of compiledListArr) {
   const urls = await getUrls(list);
-  allUrls = [...allUrls, ...urls.active]
+  if (urls?.active?.length > 0) {
+    allUrls = [...allUrls, ...urls?.active]
+  }
 }
+
 // const sites = await getUrls(compiledListArr);
+
+if (!isTest && allUrls.length > 0) { // only write to the file system if remote urls were retrieved
+  const localFile = [...allUrls]
+  try {
+    fs.writeFileSync('./local_accounts.json', JSON.stringify(localFile, null, 2));
+  } catch (err) {
+    console.error(err);
+  }
+}
 
 
 let totalRows;
@@ -56,11 +74,18 @@ const channels = {
 }
 
 // ping them urls, yo
-const pingSalonUrls = async () => {
-  totalRows = allUrls.length
+const pingSalonUrls = async (arr) => {
+  totalRows = arr.length
 
-  const response = await Promise.all(allUrls.map(acct => getResponseCode(acct.domain)))
-  
+  if (isTest) {
+    arr = arr.slice(0, 15);
+    totalRows = arr.length;
+  }
+  if (willBreak) {
+    arr[0].domain = 'testurlforpingy.com'
+  }
+
+  const response = await Promise.all(arr.map(acct => getResponseCode(acct.domain)))
 }
 
 async function repingFlaggedSalons() {
@@ -103,7 +128,7 @@ async function getResponseCode(salon, flagged = false) {
           sendSlackMessage(channels['sitehealth'], err.message)
         } else {
           // test channel //
-          sendSlackMessage(channels['pingbotLog'], err.messag)
+          sendSlackMessage(channels['pingbotLog'], err.message)
         }
 
 
@@ -119,10 +144,10 @@ async function getResponseCode(salon, flagged = false) {
     if (flagged) {
       if (!isTest) {
         // site health production channel //
-        sendSlackMessage(channels['sitehealth'], err.message)
+        sendSlackMessage(channels['sitehealth'], `https://${salon} responded with a status code of ${status}`)
       } else {
         // test channel //
-        sendSlackMessage(channels['pingbotLog'], err.message);
+        sendSlackMessage(channels['pingbotLog'], `https://${salon} responded with a status code of ${status}`);
       }
 
 
@@ -149,7 +174,9 @@ async function runPingy() {
 
   const start = Date.now();
 
-  await pingSalonUrls();
+  const arr = allUrls.length > 0 ? allUrls : localFile
+
+  await pingSalonUrls(arr);
   
   await repingFlaggedSalons();
 
