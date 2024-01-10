@@ -15,6 +15,10 @@ let willBreak = false
 
 let compiledListArr = []
 
+if (process.env.REMOTE_SALON_LISTS) {
+  compiledListArr = process.env.REMOTE_SALON_LISTS.split('|');
+}
+
 process.argv.forEach(arg => {
   if (arg.includes('http://') || arg.includes('https://')) {
     compiledListArr.push(arg)
@@ -26,7 +30,7 @@ process.argv.forEach(arg => {
 })
 
 if (compiledListArr.length === 0) {
-  compiledListArr = ['http://67.227.167.26/filtered_accounts.json','http://67.227.166.13/filtered_accounts.json']
+  compiledListArr = []
 }
 
 async function getUrls(listUrl) {
