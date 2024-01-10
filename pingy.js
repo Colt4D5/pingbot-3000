@@ -121,8 +121,7 @@ async function getResponseCode(salon, flagged = false) {
     if (err?.message) {
       if (!flagged) {
         flaggedSalons.push( salon );
-      }
-      if (flagged) {
+      } else {
         if (!isTest) {
           // site health production channel //
           sendSlackMessage(channels['sitehealth'], err.message)
@@ -133,6 +132,14 @@ async function getResponseCode(salon, flagged = false) {
 
 
         flaggedSites++;
+      }
+    } else {
+      if (!isTest) {
+        // site health production channel //
+        sendSlackMessage(channels['sitehealth'], `Something went wrong while requesting https://${formattedUrl}`)
+      } else {
+        // test channel //
+        sendSlackMessage(channels['pingbotLog'], `Something went wrong while requesting https://${formattedUrl}`)
       }
     }
     return;
@@ -153,6 +160,8 @@ async function getResponseCode(salon, flagged = false) {
 
       flaggedSites++;
     }
+  } else {
+    // all is well, no need for alarm
   }
 }
 

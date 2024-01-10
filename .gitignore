@@ -5,3 +5,5 @@ logs*
 config
 package-lock.json
 pnpm-lock.yaml
+
+local_accounts.json
