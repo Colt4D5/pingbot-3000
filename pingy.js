@@ -120,7 +120,7 @@ async function getResponseCode(salon, flagged = false) {
     const ResText = await res.text();
     if (ResText.includes('There has been a critical error on this website')) {
       hasCriticalError = true;
-      throw new Error(`*Attention*: There has a critical error on https://${formattedUrl}.`);
+      throw new Error(`*Attention*: There has been a critical error on https://${formattedUrl}.`);
     }
     
     status = res.status;
@@ -138,10 +138,10 @@ async function getResponseCode(salon, flagged = false) {
       } else {
         if (!isTest) {
           // site health production channel //
-          sendSlackMessage(channels['sitehealth'], err.message)
+          sendSlackMessage(channels['sitehealth'], `https://${formattedUrl} ${err.message}`)
         } else {
           // test channel //
-          sendSlackMessage(channels['pingbotLog'], err.message)
+          sendSlackMessage(channels['pingbotLog'], `https://${formattedUrl} ${err.message}`)
         }
 
 
