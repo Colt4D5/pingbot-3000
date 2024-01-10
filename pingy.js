@@ -2,6 +2,7 @@
 // ** args:
 // **** http:// || https:// will query list
 // **** -t [test mode -> sends to pingbot-log instead of health]
+// **** -b [force break mode -> changes first domain to a broken url to test error message]
 import fetch from 'node-fetch';
 import pkg from '@slack/bolt';
 const { App } = pkg;
@@ -82,7 +83,7 @@ const pingSalonUrls = async (arr) => {
     totalRows = arr.length;
   }
   if (willBreak) {
-    arr[0].domain = 'testurlforpingy.com'
+    arr[0].domain = 'fakeurlfortesting.edu'
   }
 
   const response = await Promise.all(arr.map(acct => getResponseCode(acct.domain)))
@@ -100,6 +101,7 @@ async function getResponseCode(salon, flagged = false) {
   
   const formattedUrl = salon.replace('https://', '').replace('http://', '').replace('www.', '');
   let status;
+  let hasCriticalError = false;
   try {
     const url = 
       salon === 'host.immarketing.net:2087' ||
@@ -109,6 +111,14 @@ async function getResponseCode(salon, flagged = false) {
     const res = await fetch(url, {
       timeout: 20000
     });
+
+    // scan response text for critical error in message
+    const ResText = await res.text();
+    if (ResText.includes('There has been a critical error on this website')) {
+      hasCriticalError = true;
+      throw new Error(`*Attention*: There has a critical error on https://${formattedUrl}.`);
+    }
+    
     status = res.status;
     if (status && typeof status === 'number') {
       if (status < 200 || status > 299) {
@@ -136,10 +146,10 @@ async function getResponseCode(salon, flagged = false) {
     } else {
       if (!isTest) {
         // site health production channel //
-        sendSlackMessage(channels['sitehealth'], `Something went wrong while requesting https://${formattedUrl}`)
+        sendSlackMessage(channels['sitehealth'], `Something went wrong while requesting https://${formattedUrl}`, hasCriticalError)
       } else {
         // test channel //
-        sendSlackMessage(channels['pingbotLog'], `Something went wrong while requesting https://${formattedUrl}`)
+        sendSlackMessage(channels['pingbotLog'], `Something went wrong while requesting https://${formattedUrl}`, hasCriticalError)
       }
     }
     return;
@@ -151,10 +161,10 @@ async function getResponseCode(salon, flagged = false) {
     if (flagged) {
       if (!isTest) {
         // site health production channel //
-        sendSlackMessage(channels['sitehealth'], `https://${salon} responded with a status code of ${status}`)
+        sendSlackMessage(channels['sitehealth'], `https://${salon} responded with a status code of ${status}`, hasCriticalError)
       } else {
         // test channel //
-        sendSlackMessage(channels['pingbotLog'], `https://${salon} responded with a status code of ${status}`);
+        sendSlackMessage(channels['pingbotLog'], `https://${salon} responded with a status code of ${status}`, hasCriticalError);
       }
 
 
@@ -165,12 +175,13 @@ async function getResponseCode(salon, flagged = false) {
   }
 }
 
-const sendSlackMessage = async (channel, msg) => {
+const sendSlackMessage = async (channel, msg, useMarkdown = false) => {
   try {
     // Call the app.chat.postMessage method using the WebClient
     const result = await app.client.chat.postMessage({
       channel: channel,
-      text: msg
+      text: msg,
+      mrkdwn: useMarkdown
     });
   }
   catch (err) {
