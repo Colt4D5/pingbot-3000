@@ -13,6 +13,8 @@ import fs from 'node:fs';
 let isTest = false
 let willBreak = false
 
+const ignoreUrls = process.env.IGNORE_URLS.split('|')
+
 let compiledListArr = []
 
 if (process.env.REMOTE_SALON_LISTS) {
@@ -90,7 +92,13 @@ const pingSalonUrls = async (arr) => {
     arr[0].domain = 'fakeurlfortesting.edu'
   }
 
-  const response = await Promise.all(arr.map(acct => getResponseCode(acct.domain)))
+  const response = await Promise.all(arr.map(acct => {
+    if (!ignoreUrls.includes(acct.domain)) {
+      return getResponseCode(acct.domain)
+    } else {
+      totalRows--
+    }
+  }))
 }
 
 async function repingFlaggedSalons() {
