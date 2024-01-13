@@ -8,7 +8,10 @@ import pkg from '@slack/bolt';
 const { App } = pkg;
 import dotenv from 'dotenv';
 dotenv.config();
-import fs from 'node:fs';
+import { promises as fs } from 'fs';
+
+import { scanObj } from './scanObj.js';
+import { logPing } from './logPingy.js';
 
 let isTest = false
 let willBreak = false
@@ -57,7 +60,7 @@ for await (const list of compiledListArr) {
 if (!isTest && allUrls.length > 0) { // only write to the file system if remote urls were retrieved
   const localFile = [...allUrls]
   try {
-    fs.writeFileSync('./local_accounts.json', JSON.stringify(localFile, null, 2));
+    fs.writeFile('./local_accounts.json', JSON.stringify(localFile, null, 2));
   } catch (err) {
     console.error(err);
   }
@@ -67,6 +70,7 @@ if (!isTest && allUrls.length > 0) { // only write to the file system if remote 
 let totalRows;
 let flaggedSites = 0;
 const flaggedSalons = [];
+const pingedSalons = []; // this one is for the sqlite db
 
 // initialize and authorize Pingy to access IM slack space
 const app = new App({
@@ -146,10 +150,12 @@ async function getResponseCode(salon, flagged = false) {
       } else {
         if (!isTest) {
           // site health production channel //
-          sendSlackMessage(channels['sitehealth'], `https://${formattedUrl} ${err.message}`)
+          addToPingObj(formattedUrl, '67.227.167.26', status || null);
+          sendSlackMessage(channels['sitehealth'], err.message)
         } else {
           // test channel //
-          sendSlackMessage(channels['pingbotLog'], `https://${formattedUrl} ${err.message}`)
+          addToPingObj(formattedUrl, '67.227.167.26', status || null);
+          sendSlackMessage(channels['pingbotLog'], err.message)
         }
 
 
@@ -158,9 +164,11 @@ async function getResponseCode(salon, flagged = false) {
     } else {
       if (!isTest) {
         // site health production channel //
+        addToPingObj(formattedUrl, '67.227.167.26', status || null);
         sendSlackMessage(channels['sitehealth'], `Something went wrong while requesting https://${formattedUrl}`, hasCriticalError)
       } else {
         // test channel //
+        addToPingObj(formattedUrl, '67.227.167.26', status || null);
         sendSlackMessage(channels['pingbotLog'], `Something went wrong while requesting https://${formattedUrl}`, hasCriticalError)
       }
     }
@@ -173,9 +181,11 @@ async function getResponseCode(salon, flagged = false) {
     if (flagged) {
       if (!isTest) {
         // site health production channel //
+        addToPingObj(formattedUrl, '67.227.167.26', status || null);
         sendSlackMessage(channels['sitehealth'], `https://${salon} responded with a status code of ${status}`, hasCriticalError)
       } else {
         // test channel //
+        addToPingObj(formattedUrl, '67.227.167.26', status || null);
         sendSlackMessage(channels['pingbotLog'], `https://${salon} responded with a status code of ${status}`, hasCriticalError);
       }
 
@@ -185,6 +195,10 @@ async function getResponseCode(salon, flagged = false) {
   } else {
     // all is well, no need for alarm
   }
+}
+
+function addToPingObj(domain, server, status) {
+  pingedSalons.push({ domain, server, status });
 }
 
 const sendSlackMessage = async (channel, msg, useMarkdown = false) => {
@@ -217,5 +231,10 @@ async function runPingy() {
   const minutes = Math.trunc(executionTime / 60);
   const seconds = Math.trunc(executionTime % 60);
   sendSlackMessage(channels['pingbotLog'], `Finished scanning ${totalRows} sites after ${minutes} minutes and ${seconds} seconds with ${flaggedSites} flagged sites`)
+
+  const obj = scanObj(pingedSalons);
+
+  logPing(obj);
 }
 runPingy();
+
