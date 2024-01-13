@@ -1,6 +1,8 @@
 import { promises as fs } from 'fs';
 import sqlite3 from 'sqlite3'
 const connection = sqlite3.verbose();
+import dotenv from 'dotenv';
+dotenv.config();
 
 export const logPing = async (obj) => {
   await fs.readFile(process.env.DB_PATH).catch(() =>
