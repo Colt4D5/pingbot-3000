@@ -5,8 +5,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const logPing = async (obj) => {
-  await fs.readFile(process.env.DB_PATH).catch(() =>
-    fs.writeFile(process.env.DB_PATH, '')
+  await fs.readFile(process.env.DB_PATH).catch(async () =>
+    await fs.writeFile(process.env.DB_PATH, '')
   );
 
   // connect to the db
