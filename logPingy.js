@@ -1,3 +1,4 @@
+import path from "path"
 import { promises as fs } from 'fs';
 import sqlite3 from 'sqlite3'
 const connection = sqlite3.verbose();
@@ -5,12 +6,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const logPing = async (obj) => {
-  await fs.readFile(process.env.DB_PATH).catch(async () =>
-    await fs.writeFile(process.env.DB_PATH, '')
+  await fs.readFile(path.resolve(process.env.DB_PATH)).catch(async () =>
+    await fs.writeFile(path.resolve(process.env.DB_PATH), '')
   );
 
   // connect to the db
-  const db = new connection.Database('./test.sqlite', connection.OPEN_READWRITE, err => {
+  const db = new connection.Database(path.resolve(process.env.DB_PATH), connection.OPEN_READWRITE, err => {
     if (err) return console.error(err.message);
   });
 
